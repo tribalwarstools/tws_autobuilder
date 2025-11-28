@@ -1,180 +1,279 @@
-(function () {
+(function(){
     'use strict';
 
     if (!window.AutoBuilderBackend) {
-        console.error("AutoBuilderBackend não encontrado!");
+        console.error("AutoBuilderBackend não encontrado. Cole primeiro o backend v6.3.");
         return;
     }
-
-    // ================================
-    // SHORTCUTS DO BACKEND
-    // ================================
     const B = window.AutoBuilderBackend;
 
-    // ================================
-    // ESTILOS DO PAINEL
-    // ================================
-    const css = `
-        #tws_autob_panel {
-            position: fixed;
-            top: 80px;
-            right: 0;
-            width: 290px;
-            background: #f5f5f5;
-            border: 2px solid #c2a878;
-            padding: 10px;
-            z-index: 99999;
-            font-size: 13px;
-            font-family: Verdana;
-        }
-
-        #tws_autob_panel h3 {
-            margin: 0;
-            font-size: 15px;
-            margin-bottom: 8px;
-            color: #6b4500;
-        }
-
-        #tws_autob_log {
-            height: 140px;
-            overflow-y: auto;
-            background: #fff;
-            padding: 4px;
-            border: 1px solid #aaa;
-        }
-
-        .tws_input {
-            width: 100%;
-            padding: 3px;
-            margin-bottom: 5px;
-        }
-
-        .tws_btn {
-            width: 100%;
-            margin-top: 4px;
-            padding: 6px;
-            border: 1px solid #a57b52;
-            cursor: pointer;
-            background: #dfd1b0;
-        }
-        .tws_btn:hover {
-            background: #e9dfc7;
-        }
-
-        .tws_flex {
-            display: flex;
-            justify-content: space-between;
-            margin: 4px 0;
-        }
+    // ===== CSS =====
+    const CSS = `
+    #ab_panel { position: fixed; top: 70px; right: 10px; width: 360px; max-height: 80vh;
+                background: #f7f6f2; border: 2px solid #b88f45; padding: 10px; z-index:999999;
+                font-family: Arial, Helvetica, sans-serif; font-size:13px; box-shadow:0 6px 18px rgba(0,0,0,0.3);
+                overflow:auto; border-radius:6px;}
+    #ab_panel h4{margin:4px 0 8px 0;color:#6b4500}
+    .ab_row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+    .ab_btn{flex:1;padding:6px;border-radius:4px;border:1px solid #a57b52;background:#e8dec1;cursor:pointer}
+    .ab_btn.small{flex:0;padding:4px 6px;width:auto}
+    .ab_select,.ab_input{padding:6px;border:1px solid #cbb589;border-radius:4px;background:#fff; width:100%}
+    #ab_priority_list{background:#fff;border:1px solid #ddd;padding:6px;border-radius:4px;max-height:120px;overflow:auto}
+    .ab_item{display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-bottom:1px solid #eee}
+    .ab_item:last-child{border-bottom:none}
+    .ab_item .label{flex:1}
+    .ab_small{width:58px;padding:4px}
+    #ab_levels{background:#fff;border:1px solid #ddd;padding:6px;border-radius:4px;max-height:120px;overflow:auto;font-family:monospace;font-size:12px}
+    #ab_logs{background:#0f1720;color:#cfe8d0;padding:6px;border-radius:4px;max-height:140px;overflow:auto;font-family:monospace;font-size:12px}
+    .ab_muted{color:#666;font-size:12px}
     `;
     const style = document.createElement('style');
-    style.textContent = css;
+    style.textContent = CSS;
     document.head.appendChild(style);
 
-    // ================================
-    // PAINEL HTML
-    // ================================
+    // ===== Building list (should match backend default) =====
+    const BUILDINGS = ["main","barracks","stable","garage","smith","market","snob","wood","stone","iron","storage","farm","hide","wall"];
+
+    // ===== CREATE PANEL =====
+    if (document.getElementById('ab_panel')) document.getElementById('ab_panel').remove();
     const panel = document.createElement('div');
-    panel.id = 'tws_autob_panel';
+    panel.id = 'ab_panel';
     panel.innerHTML = `
-        <h3>AutoBuilder v5.0</h3>
+        <h4>AutoBuilder UI v6.3</h4>
 
-        <div class="tws_flex">
-            <span>Status:</span>
-            <b id="tws_status">---</b>
+        <div class="ab_row">
+            <button id="ab_toggle" class="ab_btn">Carregando...</button>
+            <button id="ab_runnow" class="ab_btn small">Run now</button>
         </div>
 
-        <button id="tws_toggle" class="tws_btn">Carregando...</button>
-
-        <hr>
-
-        <div>
-            <label>Prioridade (CSV):</label>
-            <input id="tws_priority" class="tws_input" placeholder="main,farm,storage">
-            <button id="tws_save_priority" class="tws_btn">Salvar Prioridade</button>
+        <div class="ab_row">
+            <div style="flex:1">
+                <label class="ab_muted">Adicionar prioridade</label>
+                <select id="ab_add_select" class="ab_select"></select>
+            </div>
+            <button id="ab_add_btn" class="ab_btn small">Add</button>
         </div>
 
-        <hr>
+        <div id="ab_priority_list" class="ab_muted"></div>
 
-        <div>
-            <label>Níveis Máximos (JSON):</label>
-            <textarea id="tws_maxlvl" class="tws_input" style="height:60px;"></textarea>
-            <button id="tws_save_maxlvl" class="tws_btn">Salvar MaxLevel</button>
+        <div style="height:8px"></div>
+
+        <div class="ab_row">
+            <div style="flex:1">
+                <label class="ab_muted">Adicionar / Editar MaxLevel</label>
+                <select id="ab_max_select" class="ab_select"></select>
+            </div>
+            <input id="ab_max_value" type="number" class="ab_small" min="1" placeholder="lvl">
+            <button id="ab_max_add" class="ab_btn small">Salvar</button>
         </div>
 
-        <hr>
+        <div style="height:6px"></div>
+        <div id="ab_max_list" class="ab_muted"></div>
+
+        <div style="height:8px"></div>
 
         <div>
-            <label>Níveis atuais:</label>
-            <pre id="tws_levels" style="background:#fff;padding:4px;border:1px solid #aaa;height:100px;overflow:auto;"></pre>
+            <label class="ab_muted">Níveis atuais (auto refresh)</label>
+            <div id="ab_levels"></div>
         </div>
 
-        <hr>
+        <div style="height:8px"></div>
+
+        <div class="ab_row">
+            <button id="ab_export" class="ab_btn small">Export Config</button>
+            <button id="ab_import" class="ab_btn small">Import Config</button>
+            <button id="ab_clearlogs" class="ab_btn small">Clear Logs</button>
+        </div>
+
+        <div style="height:8px"></div>
 
         <div>
-            <label>Log:</label>
-            <div id="tws_autob_log"></div>
+            <label class="ab_muted">Logs</label>
+            <div id="ab_logs"></div>
         </div>
     `;
     document.body.appendChild(panel);
 
-    // ================================
-    // FUNÇÕES DE UI
-    // ================================
-    function log(msg) {
-        const box = document.getElementById("tws_autob_log");
+    // ===== UI ELEMENTS =====
+    const $toggle = document.getElementById('ab_toggle');
+    const $runNow = document.getElementById('ab_runnow');
+    const $addSelect = document.getElementById('ab_add_select');
+    const $addBtn = document.getElementById('ab_add_btn');
+    const $priorityList = document.getElementById('ab_priority_list');
+    const $maxSelect = document.getElementById('ab_max_select');
+    const $maxValue = document.getElementById('ab_max_value');
+    const $maxAdd = document.getElementById('ab_max_add');
+    const $maxList = document.getElementById('ab_max_list');
+    const $levels = document.getElementById('ab_levels');
+    const $export = document.getElementById('ab_export');
+    const $import = document.getElementById('ab_import');
+    const $clearLogs = document.getElementById('ab_clearlogs');
+    const $logs = document.getElementById('ab_logs');
+
+    // ===== populate selects =====
+    BUILDINGS.forEach(b=>{
+        const o1 = document.createElement('option'); o1.value = b; o1.textContent = b; $addSelect.appendChild(o1);
+        const o2 = document.createElement('option'); o2.value = b; o2.textContent = b; $maxSelect.appendChild(o2);
+    });
+
+    // ===== helpers =====
+    function uiLog(msg){
         const time = new Date().toLocaleTimeString();
-        box.innerHTML = `[${time}] ${msg}<br>` + box.innerHTML;
+        $logs.innerHTML = `[${time}] ${msg}\n` + $logs.innerHTML;
     }
 
-    function refreshStatus() {
-        const cfg = B.loadConfig();
-        document.getElementById("tws_status").innerText = cfg.auto ? "ATIVO" : "PAUSADO";
-        document.getElementById("tws_toggle").innerText = cfg.auto ? "Desativar" : "Ativar";
+    function saveCfg(cfg){ B.saveConfig(cfg); uiLog("Config salva"); renderAll(); }
 
-        document.getElementById("tws_priority").value = cfg.priority.join(",");
-
-        document.getElementById("tws_maxlvl").value = JSON.stringify(cfg.maxLevel, null, 2);
-
-        const lv = B.getBuildings();
-        document.getElementById("tws_levels").innerText = JSON.stringify(lv, null, 2);
+    // render priority with controls
+    function renderPriority(cfg){
+        $priorityList.innerHTML = '';
+        (cfg.priority || []).forEach((b, idx)=>{
+            const row = document.createElement('div'); row.className='ab_item';
+            row.innerHTML = `<div class="label">${idx+1}. ${b}</div>
+                <div style="display:flex;gap:4px">
+                 <button class="ab_btn small" data-act="up" data-idx="${idx}">↑</button>
+                 <button class="ab_btn small" data-act="down" data-idx="${idx}">↓</button>
+                 <button class="ab_btn small" data-act="rm" data-idx="${idx}">✖</button>
+                </div>`;
+            $priorityList.appendChild(row);
+        });
     }
 
-    // Intervalo para atualizar níveis em tempo real
-    setInterval(refreshStatus, 2000);
+    // render maxLevel
+    function renderMax(cfg){
+        $maxList.innerHTML = '';
+        const keys = Object.keys(cfg.maxLevel || {});
+        if (!keys.length){ $maxList.innerHTML = '<div class="ab_muted">Nenhum nível máximo definido</div>'; return; }
+        keys.forEach(k=>{
+            const v = cfg.maxLevel[k];
+            const el = document.createElement('div'); el.className='ab_item';
+            el.innerHTML = `<div class="label">${k}: <b>${v}</b></div>
+                <div style="display:flex;gap:4px">
+                  <button class="ab_btn small" data-act="edit" data-key="${k}">edit</button>
+                  <button class="ab_btn small" data-act="del" data-key="${k}">del</button>
+                </div>`;
+            $maxList.appendChild(el);
+        });
+    }
 
-    // ================================
-    // EVENTOS DO PAINEL
-    // ================================
-    document.getElementById("tws_toggle").onclick = () => {
+    // render current buildings (async)
+    let refreshBuildingsTimer = null;
+    async function renderBuildings(){
+        try{
+            const data = await B.getBuildings();
+            // data may be object or promise
+            const o = (typeof data === 'object') ? data : await data;
+            $levels.textContent = JSON.stringify(o, null, 2);
+        }catch(err){
+            $levels.textContent = "Erro ao ler níveis: "+err;
+        }
+    }
+
+    // refresh UI (cfg + levels)
+    function renderAll(){
         const cfg = B.loadConfig();
-        B.setAuto(!cfg.auto);
-        log("AutoBuilder: " + (!cfg.auto ? "ATIVADO" : "DESATIVADO"));
-        refreshStatus();
+        $toggle.textContent = cfg.auto ? 'Desativar' : 'Ativar';
+        renderPriority(cfg);
+        renderMax(cfg);
+        renderBuildings();
+    }
+
+    // ===== events =====
+    $addBtn.onclick = ()=>{
+        const b = $addSelect.value;
+        const cfg = B.loadConfig();
+        cfg.priority = cfg.priority || [];
+        if (!cfg.priority.includes(b)){
+            cfg.priority.push(b);
+            saveCfg(cfg);
+            uiLog("Adicionado prioridade: "+b);
+        } else uiLog("Já existe na prioridade: "+b);
     };
 
-    document.getElementById("tws_save_priority").onclick = () => {
-        const value = document.getElementById("tws_priority").value.trim();
-        if (!value) return;
-        const arr = value.split(",").map(s => s.trim()).filter(Boolean);
-        B.setPriority(arr);
-        log("Prioridade salva.");
-        refreshStatus();
+    $priorityList.onclick = (ev)=>{
+        const btn = ev.target.closest('button');
+        if (!btn) return;
+        const act = btn.dataset.act;
+        const idx = Number(btn.dataset.idx);
+        const cfg = B.loadConfig();
+        const pr = cfg.priority || [];
+        if (act==='up' && idx>0){ [pr[idx-1],pr[idx]]=[pr[idx],pr[idx-1]]; saveCfg(cfg); }
+        if (act==='down' && idx<pr.length-1){ [pr[idx+1],pr[idx]]=[pr[idx],pr[idx+1]]; saveCfg(cfg); }
+        if (act==='rm'){ pr.splice(idx,1); saveCfg(cfg); }
     };
 
-    document.getElementById("tws_save_maxlvl").onclick = () => {
-        try {
-            const json = JSON.parse(document.getElementById("tws_maxlvl").value);
-            B.setMaxLevel(json);
-            log("MaxLevel atualizado.");
-            refreshStatus();
-        } catch {
-            alert("JSON inválido em Níveis Máximos.");
+    $maxAdd.onclick = ()=>{
+        const b = $maxSelect.value;
+        const lvl = Number($maxValue.value);
+        if (!b || !lvl || lvl < 1){ alert('Selecione prédio e nível maior que 0'); return; }
+        const cfg = B.loadConfig();
+        cfg.maxLevel = cfg.maxLevel || {};
+        cfg.maxLevel[b] = lvl;
+        saveCfg(cfg);
+        uiLog(`MaxLevel salvo: ${b} -> ${lvl}`);
+        $maxValue.value = '';
+    };
+
+    $maxList.onclick = (ev)=>{
+        const btn = ev.target.closest('button');
+        if (!btn) return;
+        const act = btn.dataset.act;
+        const key = btn.dataset.key;
+        const cfg = B.loadConfig();
+        if (act==='del'){ delete cfg.maxLevel[key]; saveCfg(cfg); uiLog('MaxLevel removido: '+key); }
+        if (act==='edit'){ $maxSelect.value = key; $maxValue.value = cfg.maxLevel[key]; }
+    };
+
+    $toggle.onclick = ()=>{
+        const cfg = B.loadConfig();
+        cfg.auto = !cfg.auto;
+        saveCfg(cfg);
+        uiLog('Auto ' + (cfg.auto ? 'ativado' : 'desativado'));
+        // ensure start/stop called on backend
+        try{
+            if (cfg.auto && typeof B.start === 'function') B.start();
+            if (!cfg.auto && typeof B.stop === 'function') B.stop();
+        }catch(e){ console.warn(e) }
+    };
+
+    $runNow.onclick = async ()=>{
+        uiLog('Executando run() manualmente...');
+        try{
+            await B.run();
+            uiLog('run() finalizado');
+            await renderBuildings();
+        }catch(err){
+            uiLog('Erro run(): '+err);
+            console.error(err);
         }
     };
 
-    // Primeira atualização
-    refreshStatus();
-    setTimeout(() => log("AutoBuilder carregado!"), 300);
+    $export.onclick = ()=>{
+        const cfg = B.loadConfig();
+        const txt = JSON.stringify(cfg, null, 2);
+        navigator.clipboard.writeText(txt).then(()=> uiLog('Config copiada para clipboard'));
+    };
+
+    $import.onclick = async ()=>{
+        const txt = prompt("Cole o JSON da config:");
+        if (!txt) return;
+        try{
+            const parsed = JSON.parse(txt);
+            B.saveConfig(parsed);
+            uiLog('Config importada');
+            renderAll();
+        }catch(e){
+            alert('JSON inválido');
+        }
+    };
+
+    $clearLogs.onclick = ()=> { $logs.innerHTML = ''; uiLog('Logs limpos'); };
+
+    // auto refresh levels every 3s
+    setInterval(renderBuildings, 3000);
+
+    // initial render
+    renderAll();
+    uiLog('UI carregada (v6.3)');
 
 })();
